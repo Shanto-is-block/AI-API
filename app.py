@@ -8,6 +8,7 @@ import requests
 import secrets
 import os
 
+
 app = FastAPI(title="Smart AI Data Analyst API with Telegram Bot", version="5.0")
 
 # টেলিগ্রাম কনফিগারেশন
