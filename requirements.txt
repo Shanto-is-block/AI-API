@@ -1,9 +1,9 @@
 fastapi
 uvicorn
 pydantic
-transformers
-duckduckgo-search
 requests
+beautifulsoup4
+duckduckgo_search
+transformers
 torch
-torchvision
-torchaudio
+sentencepiece
