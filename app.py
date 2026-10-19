@@ -191,7 +191,7 @@ def tool_log_mission_action(mission_text: str = "General Task", *args, **kwargs)
         os.makedirs(folder, exist_ok=True)
         filename = f"{folder}/mission_execution_history.log"
         with open(filename, "a", encoding="utf-8") as f:
-            f.write(f"[{time.ctime()] Mission Executed: {mission_text}\n")
+            f.write(f"[{time.ctime()}] Mission Executed: {mission_text}\n")
         return True, f"Mission successfully logged to system storage."
     except Exception as e:
         return False, f"Mission Logging Error: {str(e)}"
