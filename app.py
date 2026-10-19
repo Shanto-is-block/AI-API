@@ -9,15 +9,16 @@ import secrets
 import os
 import uvicorn
 
-app = FastAPI(title="Smart AI Data Analyst & Autonomous API", version="6.0")
+app = FastAPI(title="Smart AI Data Analyst & Autonomous API", version="8.2")
 
 # টেলিগ্রাম কনফিগারেশন
-TELEGRAM_BOT_TOKEN = "8974206752:AAFqOusGoMFjh0snVhUQZFEvt58jJ56FVIk"
+TELEGRAM_BOT_TOKEN = "8931678358:AAEFHNA__FVJlwB6LGbkYRFPXVMm7fYBaaA"
 ADMIN_TELEGRAM_ID = 7363218232
 
 # ভ্যালিড এপিআই কি-গুলোর তালিকা
 VALID_API_KEYS = {
-    os.getenv("MY_CUSTOM_API_KEY", "my-secret-solana-ai-key-12345")
+    os.getenv("MY_CUSTOM_API_KEY", "my-secret-solana-ai-key-12345"),
+    "ai_key_1762b5a10bdc7ed4a5db091d"  # আপনার জেনারেট করা নির্দিষ্ট এপিআই কি
 }
 
 # চ্যাট মেমোরি স্টোর করার জন্য ডিকশনারি (Short-term Memory)
@@ -34,7 +35,7 @@ except Exception as e:
 
 
 # --- সেলফ-রিকভারিং এআই অ্যানালিসিস লজিক ---
-def run_ai_analysis(chat_id: int, query: str) -> str:
+def run_ai_analysis(chat_id: int, query: str, balance: float = 0.0, mission: str = "") -> str:
     try:
         # মেমোরি থেকে পূর্বের ইতিহাস যুক্ত করা
         history = CHAT_HISTORIES.get(chat_id, [])
@@ -55,8 +56,16 @@ def run_ai_analysis(chat_id: int, query: str) -> str:
         else:
             combined_data = "No live web data found, using internal reasoning."
         
+        # ব্যালেন্স এবং মিশন থাকলে তা প্রম্পটের সাথে যুক্ত করা
+        extra_context = ""
+        if balance > 0.0:
+            extra_context += f"Account/Wallet Balance: {balance}\n"
+        if mission:
+            extra_context += f"Specific Mission/Objective: {mission}\n"
+        
         structured_prompt = (
             f"Previous Context:\n{history_text}\n\n"
+            f"{extra_context}"
             f"Analyze the data and provide a clear business decision or conclusion.\n"
             f"Question: {query}\n"
             f"Data:\n{combined_data}\n"
@@ -76,7 +85,6 @@ def run_ai_analysis(chat_id: int, query: str) -> str:
         
         return answer
     except Exception as e:
-        # সেলফ রিকভারি ফলব্যাক রেসপন্স
         return f"System Auto-Recovered from minor error. Analysis fallback: Unable to fully process due to [{str(e)}], but your system is safe and running."
 
 
@@ -106,20 +114,21 @@ def telegram_bot_worker():
                     if user_id != ADMIN_TELEGRAM_ID:
                         requests.post(
                             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                            json={"chat_id": chat_id, "text": "Access Denied - অথরাইজড নয়।"}
+                            json={"chat_id": chat_id, "text": "Access Denied - আপনি এই বটের অনুমতিপ্রাপ্ত ব্যবহারকারী নন।"}
                         )
                         continue
                     
                     if text == "/generatekey":
                         new_key = f"ai_key_{secrets.token_hex(12)}"
                         VALID_API_KEYS.add(new_key)
-                        reply_text = f"🔑 নতুন এপিআই কি জেনারেট করা হয়েছে:\n\n`{new_key}`\n\nএটি অন্য সিস্টেমে ব্যবহার করতে পারবেন।"
+                        reply_text = f"🔑 নতুন এপিআই কি জেনারেট করা হয়েছে:\n\n`{new_key}`\n\nএটি আপনার অন্য সিস্টেমে ব্যবহার করতে পারবেন।"
                     
                     elif text in ["/start", "/help"]:
                         reply_text = (
-                            "🤖 **অটোনোমাস এআই বট উইথ মেমোরি ও সেলফ-রিকভারি সক্রিয়!**\n\n"
-                            "📌 `/generatekey` - নতুন এপিআই কি তৈরি করতে\n"
-                            "📌 যেকোনো প্রশ্ন পাঠান - মেমোরি ও লাইভ সার্চসহ এআই বিশ্লেষণ পেতে।"
+                            "🤖 **স্মার্ট এআই ডাটা অ্যানালিস্ট ও অটোনমাস বট সক্রিয়!**\n\n"
+                            "📌 `/generatekey` - নতুন সিক্রেট এপিআই কি তৈরি করতে\n"
+                            "📌 `/clearmemory` - চ্যাট মেমোরি পরিষ্কার করতে\n"
+                            "📌 যেকোনো প্রশ্ন বা বিষয় লিখে পাঠান - সরাসরি লাইভ সার্চ ও এআই এনালাইসিস পেতে।"
                         )
                     
                     elif text == "/clearmemory":
@@ -127,7 +136,6 @@ def telegram_bot_worker():
                         reply_text = "🧹 মেমোরি সফলভাবে পরিষ্কার করা হয়েছে!"
                     
                     else:
-                        # প্রসেসিং মেসেজ পাঠানো
                         res_msg = requests.post(
                             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                             json={"chat_id": chat_id, "text": "🔄 মেমোরি ও সার্চ চেক করে এনালাইসিস করা হচ্ছে..."}
@@ -150,7 +158,6 @@ def telegram_bot_worker():
                     )
                     
         except Exception as e:
-            # সেলফ রিকভারি লজিক: ইন্টারনেট বা টেলিগ্রাম এপিআই ডাউন হলে ক্র্যাশ না করে ৫ সেকেন্ড পর রিকভার করবে
             print(f"Telegram Bot Self-Recovery Triggered due to: {e}")
             time.sleep(5)
 
@@ -162,29 +169,34 @@ def startup_event():
     print("Autonomous Background Threads Initialized 🚀")
 
 
+# 👉 ব্যালেন্স এবং মিশন ফিল্ডসহ আপডেট করা রিকোয়েস্ট মডেল
 class DataAnalysisRequest(BaseModel):
     query: str
+    balance: float = 0.0
+    mission: str = ""
     max_length: int = 150
 
 def verify_api_key(authorization: str = Header(...)):
     token = authorization.replace("Bearer ", "").strip()
     if token not in VALID_API_KEYS:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+        raise HTTPException(status_code=401, detail="Invalid API Key - অ্যাক্সেস ডিনাইড")
     return token
 
 @app.get("/")
 def home():
-    return {"status": "Autonomous AI Analyst Engine with Memory & Self-Recovery is Active 🟢"}
+    return {"status": "Smart AI Data Analyst & Autonomous API Engine with Memory & Self-Recovery is Active 🟢"}
 
 @app.post("/api/v1/smart-analyze")
 def smart_analyze_and_decide(data: DataAnalysisRequest, token: str = Depends(verify_api_key)):
     try:
-        # এক্সটার্নাল এপিআই রিকোয়েস্টের জন্যও সেলফ-রিকভারিং এনালাইসিস
-        result = run_ai_analysis(0, data.query)
+        # রিকোয়েস্ট থেকে প্রাপ্ত query, balance এবং mission এআই অ্যানালিসিস ফাংশনে পাস করা হলো
+        result = run_ai_analysis(0, data.query, data.balance, data.mission)
         return {
             "status": "success",
             "engine": "Autonomous AI with Memory & Self-Recovery",
             "user_query": data.query,
+            "balance_passed": data.balance,
+            "mission_passed": data.mission,
             "ai_decision_and_analysis": result
         }
     except Exception as e:
