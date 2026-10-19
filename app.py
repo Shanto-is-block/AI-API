@@ -338,7 +338,7 @@ def self_ping_worker():
         time.sleep(480)
 
 def telegram_bot_worker():
-    global agent_memory  # <--- এখানে global ডিক্লেয়ার করা হয়েছে যাতে সিনট্যাক্স এরর না আসে
+    global agent_memory  # <--- সমস্যা সমাধানের জন্য গ্লোবাল ডিক্লেয়ারেশন ফাংশনের একদম প্রথমে আনা হয়েছে
     time.sleep(15)
     offset = 0
     print("Secure Autonomous Telegram Bot Worker Started 🤖")
@@ -372,7 +372,6 @@ def telegram_bot_worker():
                     elif text == "/tools":
                         reply_text = "🛠️ *Active Tools (Including Dynamic):*\n" + "\n".join([f"• {t}" for t in AVAILABLE_TOOLS.keys()])
                     elif text == "/clearmemory":
-                        global agent_memory
                         with memory_lock:
                             agent_memory = default_memory_data.copy()
                             save_agent_memory(agent_memory)
