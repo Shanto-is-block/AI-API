@@ -7,7 +7,7 @@ import time
 import requests
 import secrets
 import os
-
+import uvicorn
 
 app = FastAPI(title="Smart AI Data Analyst API with Telegram Bot", version="5.0")
 
@@ -57,7 +57,7 @@ def telegram_bot_worker():
     """
     ব্যাকগ্রাউন্ডে টেলিগ্রামের মেসেজ চেক করবে এবং কমান্ড হ্যান্ডেল করবে।
     """
-    time.sleep(10) # সার্ভার পুরোপুরি চালু হওয়ার জন্য অপেক্ষা
+    time.sleep(15) # সার্ভার পুরোপুরি চালু হওয়ার জন্য পর্যাপ্ত অপেক্ষা
     offset = 0
     print("Telegram Bot Background Worker Started 🤖")
     
@@ -139,7 +139,7 @@ def telegram_bot_worker():
             time.sleep(5)
 
 
-# FastAPI স্টার্ট হওয়ার সাথে সাথে টেলিগ্রাম বট থ্রেড চালু হবে
+# FastAPI স্টارت হওয়ার সাথে সাথে টেলিগ্রাম বট থ্রেড চালু হবে
 @app.on_event("startup")
 def startup_event():
     bot_thread = threading.Thread(target=telegram_bot_worker, daemon=True)
@@ -192,3 +192,9 @@ def smart_analyze_and_decide(data: DataAnalysisRequest, token: str = Depends(ver
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis & Processing Error: {str(e)}")
+
+
+# রেন্ডার পোর্টের সাথে সামঞ্জস্য রেখে অ্যাপ রান করার ব্লক
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
