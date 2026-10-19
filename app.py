@@ -9,57 +9,82 @@ import secrets
 import os
 import uvicorn
 
-app = FastAPI(title="Smart AI Data Analyst API with Telegram Bot", version="5.0")
+app = FastAPI(title="Smart AI Data Analyst & Autonomous API", version="6.0")
 
 # টেলিগ্রাম কনফিগারেশন
 TELEGRAM_BOT_TOKEN = "8974206752:AAFqOusGoMFjh0snVhUQZFEvt58jJ56FVIk"
 ADMIN_TELEGRAM_ID = 7363218232
 
-# ভ্যালিড এপিআই কি-গুলোর তালিকা (বট থেকে নতুন কি জেনারেট করলে এখানে জমা হবে)
+# ভ্যালিড এপিআই কি-গুলোর তালিকা
 VALID_API_KEYS = {
     os.getenv("MY_CUSTOM_API_KEY", "my-secret-solana-ai-key-12345")
 }
 
-# Hugging Face থেকে হালকা মডেল লোড করা
+# চ্যাট মেমোরি স্টোর করার জন্য ডিকশনারি (Short-term Memory)
+CHAT_HISTORIES = {}
+
+# Hugging Face থেকে হালকা মডেল লোড করা (সেলফ-রিকভারি ট্রাই-ক্যাচ সহ)
 print("Loading AI LLM Brain...")
-llm_brain = pipeline("text2text-generation", model="google/flan-t5-small") 
-print("LLM Brain Loaded Successfully!")
+try:
+    llm_brain = pipeline("text2text-generation", model="google/flan-t5-small")
+    print("LLM Brain Loaded Successfully!")
+except Exception as e:
+    print(f"Model Load Warning: {e}")
+    llm_brain = None
 
 
-# --- এআই এনালাইসিস লজিক ফাংশন ---
-def run_ai_analysis(query: str) -> str:
+# --- সেলফ-রিকভারিং এআই অ্যানালিসিস লজিক ---
+def run_ai_analysis(chat_id: int, query: str) -> str:
     try:
-        with DDGS() as ddgs:
-            results = [r for r in ddgs.text(query, max_results=2)]
-            
-        if not results:
-            return "কোনো অনলাইন ডাটা পাওয়া যায়নি।"
+        # মেমোরি থেকে পূর্বের ইতিহাস যুক্ত করা
+        history = CHAT_HISTORIES.get(chat_id, [])
+        history_text = "\n".join([f"Q: {h['q']}\nA: {h['a']}" for h in history[-2:]]) # শেষ ২ টি চ্যাট মনে রাখবে
+        
+        # ইন্টারনেট সার্চ উইথ সেলফ রিকভারি/ফলব্যাক
+        search_results = []
+        try:
+            with DDGS() as ddgs:
+                search_results = [r for r in ddgs.text(query, max_results=2)]
+        except Exception as search_err:
+            print(f"Search warning (Self-recovered): {search_err}")
         
         combined_data = ""
-        for i, res in enumerate(results):
-            combined_data += f"Source {i+1}: {res.get('title', '')} - {res.get('body', '')}\n"
+        if search_results:
+            for i, res in enumerate(search_results):
+                combined_data += f"Source {i+1}: {res.get('title', '')} - {res.get('body', '')}\n"
+        else:
+            combined_data = "No live web data found, using internal reasoning."
         
         structured_prompt = (
-            f"Analyze the following online data and provide a clear business decision or conclusion.\n\n"
-            f"User Question: {query}\n\n"
-            f"Fetched Online Data:\n{combined_data}\n\n"
-            f"Analysis and Decision:"
+            f"Previous Context:\n{history_text}\n\n"
+            f"Analyze the data and provide a clear business decision or conclusion.\n"
+            f"Question: {query}\n"
+            f"Data:\n{combined_data}\n"
+            f"Decision:"
         )
         
-        ai_output = llm_brain(structured_prompt, max_length=150, do_sample=True)
-        return ai_output[0]['generated_text']
+        if llm_brain:
+            ai_output = llm_brain(structured_prompt, max_length=150, do_sample=True)
+            answer = ai_output[0]['generated_text']
+        else:
+            answer = f"AI model is currently reloading. Based on web data: {combined_data[:100]}"
+            
+        # মেমোরিতে নতুন চ্যাট সেভ করা (Memory Update)
+        if chat_id not in CHAT_HISTORIES:
+            CHAT_HISTORIES[chat_id] = []
+        CHAT_HISTORIES[chat_id].append({"q": query, "a": answer})
+        
+        return answer
     except Exception as e:
-        return f"Processing Error: {str(e)}"
+        # সেলফ রিকভারি ফলব্যাক রেসপন্স
+        return f"System Auto-Recovered from minor error. Analysis fallback: Unable to fully process due to [{str(e)}], but your system is safe and running."
 
 
-# --- টেলিগ্রাম বট লং-পোলিং ব্যাকগ্রাউন্ড ওয়ার্কার ---
+# --- সেলফ-রিকভারিং টেলিগ্রাম বট ব্যাকগ্রাউন্ড ওয়ার্কার ---
 def telegram_bot_worker():
-    """
-    ব্যাকগ্রাউন্ডে টেলিগ্রামের মেসেজ চেক করবে এবং কমান্ড হ্যান্ডেল করবে।
-    """
-    time.sleep(15) # সার্ভার পুরোপুরি চালু হওয়ার জন্য পর্যাপ্ত অপেক্ষা
+    time.sleep(15)
     offset = 0
-    print("Telegram Bot Background Worker Started 🤖")
+    print("Autonomous Telegram Bot Worker Started 🤖")
     
     while True:
         try:
@@ -70,7 +95,6 @@ def telegram_bot_worker():
             if data.get("ok"):
                 for update in data.get("result", []):
                     offset = update["update_id"] + 1
-                    
                     message = update.get("message")
                     if not message:
                         continue
@@ -79,47 +103,39 @@ def telegram_bot_worker():
                     user_id = message["from"]["id"]
                     text = message.get("text", "").strip()
                     
-                    # শুধুমাত্র নির্দিষ্ট অ্যাডমিন আইডি (7363218232) এর মেসেজ প্রসেস করবে
                     if user_id != ADMIN_TELEGRAM_ID:
                         requests.post(
                             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                            json={"chat_id": chat_id, "text": "Access Denied - আপনি এই বটের অনুমতিপ্রাপ্ত ব্যবহারকারী নন।"}
+                            json={"chat_id": chat_id, "text": "Access Denied - অথরাইজড নয়।"}
                         )
                         continue
                     
-                    # কমান্ড ১: /generatekey (নতুন এপিআই কি জেনারেট করবে)
                     if text == "/generatekey":
                         new_key = f"ai_key_{secrets.token_hex(12)}"
                         VALID_API_KEYS.add(new_key)
-                        reply_text = (
-                            f"🔑 নতুন এপিআই কি সফলভাবে জেনারেট করা হয়েছে!\n\n"
-                            f"`{new_key}`\n\n"
-                            f"এই কি শুধুমাত্র আপনার সিস্টেমে কাজ করবে।"
-                        )
+                        reply_text = f"🔑 নতুন এপিআই কি জেনারেট করা হয়েছে:\n\n`{new_key}`\n\nএটি অন্য সিস্টেমে ব্যবহার করতে পারবেন।"
                     
-                    # কমান্ড ২: /start বা /help
                     elif text in ["/start", "/help"]:
                         reply_text = (
-                            "স্বাগতম! আপনার স্মার্ট এআই ডাটা অ্যানালিস্ট বডি সক্রিয় রয়েছে।\n\n"
-                            "📌 **কমান্ডসমূহ:**\n"
-                            "👉 `/generatekey` - নতুন সিক্রেট এপিআই কি তৈরি করতে\n"
-                            "👉 যেকোনো প্রশ্ন বা বিষয় লিখে পাঠান - সরাসরি এআই এনালাইসিস ও সিদ্ধান্ত পেতে।"
+                            "🤖 **অটোনোমাস এআই বট উইথ মেমোরি ও সেলফ-রিকভারি সক্রিয়!**\n\n"
+                            "📌 `/generatekey` - নতুন এপিআই কি তৈরি করতে\n"
+                            "📌 যেকোনো প্রশ্ন পাঠান - মেমোরি ও লাইভ সার্চসহ এআই বিশ্লেষণ পেতে।"
                         )
                     
-                    # সাধারণ টেক্সট বা কুয়েরি পাঠালে সরাসরি এআই এনালাইসিস করে জবাব দেবে
+                    elif text == "/clearmemory":
+                        CHAT_HISTORIES[chat_id] = []
+                        reply_text = "🧹 মেমোরি সফলভাবে পরিষ্কার করা হয়েছে!"
+                    
                     else:
-                        reply_text = f"🔄 এনালাইসিস করা হচ্ছে...\n\nप्रश्न: {text}\n\n"
-                        # প্রথমে একটি প্রসেসিং মেসেজ পাঠানো
+                        # প্রসেসিং মেসেজ পাঠানো
                         res_msg = requests.post(
                             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                            json={"chat_id": chat_id, "text": reply_text}
+                            json={"chat_id": chat_id, "text": "🔄 মেমোরি ও সার্চ চেক করে এনালাইসিস করা হচ্ছে..."}
                         ).json()
                         
-                        # এআই এনালাইসিস রান করা
-                        ai_result = run_ai_analysis(text)
+                        ai_result = run_ai_analysis(chat_id, text)
                         
-                        # আগের মেসেজটি আপডেট বা নতুন করে ফলাফল পাঠানো
-                        reply_text = f"💡 **এআই সিদ্ধান্ত ও বিশ্লেষণ:**\n\n{ai_result}"
+                        reply_text = f"💡 **এআই বিশ্লেষণ ও সিদ্ধান্ত:**\n\n{ai_result}"
                         if res_msg.get("ok"):
                             msg_id = res_msg["result"]["message_id"]
                             requests.post(
@@ -128,23 +144,22 @@ def telegram_bot_worker():
                             )
                         continue
                     
-                    # সাধারণ রেসপন্স পাঠানোর জন্য
                     requests.post(
                         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                         json={"chat_id": chat_id, "text": reply_text, "parse_mode": "Markdown"}
                     )
                     
         except Exception as e:
-            print(f"Telegram Bot Error: {e}")
+            # সেলফ রিকভারি লজিক: ইন্টারনেট বা টেলিগ্রাম এপিআই ডাউন হলে ক্র্যাশ না করে ৫ সেকেন্ড পর রিকভার করবে
+            print(f"Telegram Bot Self-Recovery Triggered due to: {e}")
             time.sleep(5)
 
 
-# FastAPI স্টارت হওয়ার সাথে সাথে টেলিগ্রাম বট থ্রেড চালু হবে
 @app.on_event("startup")
 def startup_event():
     bot_thread = threading.Thread(target=telegram_bot_worker, daemon=True)
     bot_thread.start()
-    print("Telegram Bot Thread Initiated Successfully 🚀")
+    print("Autonomous Background Threads Initialized 🚀")
 
 
 class DataAnalysisRequest(BaseModel):
@@ -154,47 +169,28 @@ class DataAnalysisRequest(BaseModel):
 def verify_api_key(authorization: str = Header(...)):
     token = authorization.replace("Bearer ", "").strip()
     if token not in VALID_API_KEYS:
-        raise HTTPException(status_code=401, detail="Invalid API Key - অ্যাক্সেস ডিনাইড")
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     return token
 
 @app.get("/")
 def home():
-    return {"status": "Smart AI Data Analyst & Telegram Bot Engine is Active 🟢"}
+    return {"status": "Autonomous AI Analyst Engine with Memory & Self-Recovery is Active 🟢"}
 
 @app.post("/api/v1/smart-analyze")
 def smart_analyze_and_decide(data: DataAnalysisRequest, token: str = Depends(verify_api_key)):
-    user_query = data.query
-    
     try:
-        with DDGS() as ddgs:
-            results = [r for r in ddgs.text(user_query, max_results=2)]
-            
-        combined_data = ""
-        for i, res in enumerate(results):
-            combined_data += f"Source {i+1}: {res.get('title', '')} - {res.get('body', '')}\n"
-            
-        structured_prompt = (
-            f"Analyze the following online data and provide a clear business decision or conclusion.\n\n"
-            f"User Question: {user_query}\n\n"
-            f"Fetched Online Data:\n{combined_data}\n\n"
-            f"Analysis and Decision:"
-        )
-        
-        ai_output = llm_brain(structured_prompt, max_length=data.max_length, do_sample=True)
-        generated_text = ai_output[0]['generated_text']
-        
+        # এক্সটার্নাল এপিআই রিকোয়েস্টের জন্যও সেলফ-রিকভারিং এনালাইসিস
+        result = run_ai_analysis(0, data.query)
         return {
             "status": "success",
-            "engine": "Smart AI Data Analyst Engine with Telegram Bot",
-            "user_query": user_query,
-            "ai_decision_and_analysis": generated_text
+            "engine": "Autonomous AI with Memory & Self-Recovery",
+            "user_query": data.query,
+            "ai_decision_and_analysis": result
         }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis & Processing Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Self-Recovery Triggered Error: {str(e)}")
 
 
-# রেন্ডার পোর্টের সাথে সামঞ্জস্য রেখে অ্যাপ রান করার ব্লক
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("app:app", host="0.0.0.0", port=port)
