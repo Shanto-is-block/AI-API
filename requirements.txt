@@ -1,7 +1,9 @@
-fastapi==0.110.0
-uvicorn==0.28.0
-pydantic==2.6.4
-transformers==4.39.0
-duckduckgo-search==5.3.0
-requests==2.31.0
-torch==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
+fastapi
+uvicorn
+pydantic
+transformers
+duckduckgo-search
+requests
+torch
+torchvision
+torchaudio
