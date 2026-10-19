@@ -338,6 +338,7 @@ def self_ping_worker():
         time.sleep(480)
 
 def telegram_bot_worker():
+    global agent_memory  # <--- এখানে global ডিক্লেয়ার করা হয়েছে যাতে সিনট্যাক্স এরর না আসে
     time.sleep(15)
     offset = 0
     print("Secure Autonomous Telegram Bot Worker Started 🤖")
