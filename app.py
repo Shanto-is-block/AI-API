@@ -15,7 +15,8 @@ import ast
 
 app = FastAPI(title="Secure Autonomous Agentic AI with Dynamic Tool Generation", version="15.0")
 
-TELEGRAM_BOT_TOKEN = "8931678358:AAEFHNA__FVJlwB6LGbkYRFPXVMm7fYBaaA"
+# --- আপডেটকৃত টেলিগ্রাম কনফিগারেশন ---
+TELEGRAM_BOT_TOKEN = "8974206752:AAFqOusGoMFjh0snVhUQZFEvt58jJ56FVIk"
 ADMIN_TELEGRAM_ID = 7363218232
 RENDER_APP_URL = "https://ai-api-cgzb.onrender.com"
 
@@ -214,11 +215,9 @@ AVAILABLE_TOOLS = {
 # --- 🛡️ SECURE SANDBOX & DYNAMIC TOOL GENERATOR ---
 # ==========================================================
 
-# ক্ষতিকর পাইথন কমান্ড বা মডিউল যা ব্লক করা হবে (Safety Guardrails)
 FORBIDDEN_KEYWORDS = ["subprocess", "os.system", "os.remove", "shutil", "eval", "exec", "__import__", "socket"]
 
 def safety_check_code(code_str: str) -> bool:
-    """ কোডে কোনো ক্ষতিকর বা নিষিদ্ধ কমান্ড আছে কিনা তা এএসটি (AST) ও ব্লকলিস্ট দিয়ে চেক করে """
     for keyword in FORBIDDEN_KEYWORDS:
         if keyword in code_str:
             print(f"⚠️ Safety Violation Blocked: Found forbidden keyword '{keyword}'")
@@ -226,12 +225,8 @@ def safety_check_code(code_str: str) -> bool:
     return True
 
 def ai_generate_and_register_dynamic_tool(task_description: str):
-    """ এআই প্রয়োজন অনুযায়ী একটি নিরাপদ ডাইনামিক টুল কোড জেনারেট করে রেজিস্ট্রি করবে """
     try:
-        # সেফটি ডেমো টুল জেনারেশন লজিক
         tool_name = f"dynamic_tool_{int(time.time())}"
-        
-        # নিরাপদ কোড টেমপ্লেট
         generated_code = f"""
 def {tool_name}(*args, **kwargs):
     try:
@@ -241,12 +236,9 @@ def {tool_name}(*args, **kwargs):
     except Exception as e:
         return False, str(e)
 """
-        
-        # ১. সেফটি চেক
         if not safety_check_code(generated_code):
             return False, "Generated tool violated safety guardrails."
 
-        # ২. স্যান্ডবক্স এক্সিকিউশন ও রেজিস্ট্রি
         local_scope = {}
         exec(generated_code, {"requests": requests, "time": time}, local_scope)
         
@@ -304,7 +296,6 @@ def run_ai_analysis_and_execute(chat_id: int, query: str, balance: float = 0.0, 
         
         executed_logs = []
         
-        # যদি এআই মনে করে নতুন টুল লাগবে, তবে সেফটি চেকসহ ডাইনামিক টুল বানাবে
         if "CREATE_NEW_TOOL" in predicted_text or selected_tool not in AVAILABLE_TOOLS:
             success_gen, gen_result = ai_generate_and_register_dynamic_tool(query)
             if success_gen:
@@ -322,7 +313,6 @@ def run_ai_analysis_and_execute(chat_id: int, query: str, balance: float = 0.0, 
             executed_logs.append(f"🛠️ [Selected Tool: {selected_tool}] -> {msg}")
             record_ai_feedback(selected_tool, success, msg)
         
-        # মিশন লগার ব্যাকগ্রাউন্ডে রান করা
         tool_log_mission_action(query)
         
         final_output = (
