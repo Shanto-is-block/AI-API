@@ -11,7 +11,7 @@ import uvicorn
 import ast
 import random
 
-app = FastAPI(title="Ultimate Autonomous Crypto Brain & Agent System", version="24.0")
+app = FastAPI(title="Ultimate Autonomous Crypto Brain & Agent System", version="24.1")
 
 # --- টেলিগ্রাম ও সিস্টেম কনফিগারেশন ---
 TELEGRAM_BOT_TOKEN = "8974206752:AAFqOusGoMFjh0snVhUQZFEvt58jJ56FVIk"
@@ -162,7 +162,6 @@ def validate_and_test_gemini_key(api_key: str) -> tuple[bool, str]:
         return False, f"Connection Failed: {str(e)}"
 
 def build_universal_memory_prompt(query: str) -> str:
-    """সকল এআই ইঞ্জিনের জন্য মেমোরি, লেসন ও স্ট্যাটস একত্রিত করে একটি সমৃদ্ধ প্রম্পট তৈরি করবে"""
     global agent_memory
     lessons = agent_memory.get("lessons_learned", [])
     wallet = agent_memory.get("wallet", {})
@@ -183,12 +182,10 @@ def build_universal_memory_prompt(query: str) -> str:
     return prompt
 
 def ask_ai_with_universal_fallback(query: str) -> tuple[str, str]:
-    """যেকোনো এআই (জেমিনি বা লোকাল) এই ফাংশনের মাধ্যমে মেমোরি পড়ে সিদ্ধান্ত নেবে"""
     global agent_memory
     keys = agent_memory.get("gemini_keys", [])
     universal_prompt = build_universal_memory_prompt(query)
     
-    # ১. প্রথমে সেভ করা জেমিনি কি (Multi-Key Rotation) দিয়ে চেষ্টা করা
     for key in keys:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
@@ -201,14 +198,12 @@ def ask_ai_with_universal_fallback(query: str) -> tuple[str, str]:
                 if candidates:
                     text_out = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                     if text_out:
-                        return text_out, "🟢 Gemini API (Cloud Cloud - Memory Aware)"
+                        return text_out, "🟢 Gemini API (Cloud - Memory Aware)"
         except Exception as e:
             continue
             
-    # ২. জেমিনি কাজ না করলে লোকাল Flan-T5 ব্রেইন মেমোরি ও লেসন বিশ্লেষণ করে কাজ চালাবে (Cross-Model Fallback)
     if llm_brain:
         try:
-            # লোকাল মডেল ছোট হওয়ায় সংক্ষিপ্ত ও কার্যকরি প্রম্পট পাঠানো হচ্ছে
             short_prompt = f"Command: {query}. Rule: {agent_memory.get('lessons_learned', ['Be safe'])[0]}"
             res_llm = llm_brain(short_prompt, max_length=60, do_sample=False)
             if res_llm and len(res_llm) > 0:
@@ -216,7 +211,6 @@ def ask_ai_with_universal_fallback(query: str) -> tuple[str, str]:
         except:
             pass
             
-    # ৩. শেষ বিকল্প হিসেবে রুল বেসড ফলব্যাক
     return "Optimized via universal memory lessons and internal logic.", "🔵 Internal Rule-based Fallback"
 
 
@@ -395,7 +389,6 @@ def run_ai_analysis_and_execute(query: str) -> str:
     current_mode = agent_memory.get("mode", "virtual").upper()
 
     try:
-        # ইউনিভার্সাল মেমোরি প্রম্পট জেনারেট করে যেকোনো এআই ইঞ্জিনের কাছে পাঠানো হচ্ছে
         ai_thought, ai_source = ask_ai_with_universal_fallback(cleaned_query)
 
         if "buy" in cleaned_query or "purchase" in cleaned_query:
@@ -539,7 +532,7 @@ def startup_event():
 def home():
     mode = agent_memory.get("mode", "virtual")
     keys_count = len(agent_memory.get("gemini_keys", []))
-    return {"status": "Ultimate Autonomous Crypto Brain is Live 🟢", "mode": mode, "gemini_keys_registered": keys_count, "version": "24.0"}
+    return {"status": "Ultimate Autonomous Crypto Brain is Live 🟢", "mode": mode, "gemini_keys_registered": keys_count, "version": "24.1"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
