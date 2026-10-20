@@ -11,7 +11,7 @@ import uvicorn
 import ast
 import random
 
-app = FastAPI(title="Ultimate Autonomous Crypto Brain & Agent System", version="24.1")
+app = FastAPI(title="Ultimate Autonomous Crypto Brain & Agent System", version="24.2")
 
 # --- টেলিগ্রাম ও সিস্টেম কনফিগারেশন ---
 TELEGRAM_BOT_TOKEN = "8974206752:AAFqOusGoMFjh0snVhUQZFEvt58jJ56FVIk"
@@ -532,7 +532,7 @@ def startup_event():
 def home():
     mode = agent_memory.get("mode", "virtual")
     keys_count = len(agent_memory.get("gemini_keys", []))
-    return {"status": "Ultimate Autonomous Crypto Brain is Live 🟢", "mode": mode, "gemini_keys_registered": keys_count, "version": "24.1"}
+    return {"status": "Ultimate Autonomous Crypto Brain is Live 🟢", "mode": mode, "gemini_keys_registered": keys_count, "version": "24.2"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
